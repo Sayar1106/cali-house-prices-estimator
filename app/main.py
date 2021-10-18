@@ -3,14 +3,32 @@ from fastapi.requests import Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 import pandas as pd
+import boto3
 import joblib
+import os
 
+BUCKET_NAME = "california-housing-model"
+FILE_NAME = "model.joblib"
+LOCAL_PATH = "./model/model.joblib"
 templates = Jinja2Templates(directory="./app/templates")
 app = FastAPI()
 
-pipe = joblib.load("./model/model.joblib")
 
-@app.get("/home/", response_class=HTMLResponse)
+def load_model():
+    sess = boto3.Session(
+    aws_access_key_id="AKIAZ2F4PBGFIWSJVATX",
+    aws_secret_access_key="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"
+    )
+    client = sess.resource('s3')
+    client.Bucket(BUCKET_NAME).download_file(
+        FILE_NAME, LOCAL_PATH
+    )
+    return joblib.load(LOCAL_PATH)
+
+pipe = load_model()
+os.remove(LOCAL_PATH)
+
+@app.get("/", response_class=HTMLResponse)
 def home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
@@ -48,4 +66,5 @@ def predict(pred_dict):
     p_df = pd.DataFrame([pred_dict])
     p_df["rooms_per_household"] = p_df["total_rooms"]/p_df["households"]
     p_df["population_per_household"] = p_df["population"]/p_df["households"]
+
     return pipe.predict(p_df)
